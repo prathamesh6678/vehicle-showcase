@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Vehicle Showcase</title>
+  <style>
+    /* Reset everything — no scroll, no margin */
+    *, *::before, *::after { box-sizing: border-box; }
+    body {
+      margin: 0;
+      overflow: hidden;          /* Prevent scrollbars */
+      background: #0a0a0f;       /* Dark base so the scene loads cleanly */
+      font-family: 'Inter', sans-serif;
+    }
+
+    /* The canvas fills 100% of the viewport */
+    #canvas-container {
+      position: fixed;
+      inset: 0;                  /* top:0, right:0, bottom:0, left:0 */
+    }
+
+    /* UI sits ABOVE the canvas */
+    #ui-overlay {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;      /* Clicks pass through to canvas by default */
+      z-index: 10;
+    }
+
+    /* But interactive UI elements re-enable pointer events */
+    #ui-overlay .interactive {
+      pointer-events: all;
+    }
+  </style>
+</head>
+<body>
+  <div id="canvas-container"></div>
+  <div id="ui-overlay">
+    <!-- UI panels will go here in later phases -->
+  </div>
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>
