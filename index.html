@@ -6,11 +6,14 @@
   <title>Vehicle Showcase</title>
   <style>
     /* Reset everything — no scroll, no margin */
+    /* Import Inter from Google Fonts */
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
     *, *::before, *::after { box-sizing: border-box; }
     body {
       margin: 0;
-      overflow: hidden;          /* Prevent scrollbars */
-      background: #0a0a0f;       /* Dark base so the scene loads cleanly */
+      overflow: hidden;
+      background: #0a0a0f;
       font-family: 'Inter', sans-serif;
     }
 
@@ -32,12 +35,232 @@
     #ui-overlay .interactive {
       pointer-events: all;
     }
+    /* Premium Glassmorphism UI */
+    .controls-container {
+      position: absolute;
+      bottom: 40px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 15px;
+      pointer-events: all;
+    }
+
+    .glass-btn {
+      background: rgba(255, 255, 255, 0.1);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 30px;
+      padding: 12px 24px;
+      color: #fff;
+      font-family: inherit;
+      font-size: 14px;
+      font-weight: 500;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+    }
+
+    .glass-btn:hover {
+      background: rgba(255, 255, 255, 0.2);
+      border-color: rgba(255, 255, 255, 0.4);
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+    }
+
+    .glass-btn:active {
+      transform: translateY(0);
+    }
+
+    /* Loading Overlay */
+    #loading-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 100;
+      background: #0a0a0f;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 20px;
+      transition: opacity 0.6s ease;
+    }
+
+    #loading-overlay.hidden {
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .loading-title {
+      font-size: 22px;
+      font-weight: 600;
+      color: #fff;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+    }
+
+    .loading-bar-track {
+      width: 280px;
+      height: 3px;
+      background: rgba(255,255,255,0.1);
+      border-radius: 10px;
+      overflow: hidden;
+    }
+
+    .loading-bar-fill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, #4488ff, #88bbff);
+      border-radius: 10px;
+      transition: width 0.15s ease;
+    }
+
+    .loading-percent {
+      font-size: 13px;
+      color: rgba(255,255,255,0.4);
+      letter-spacing: 1px;
+    }
+
+    /* Vehicle Info Panel */
+    .info-panel {
+      position: absolute;
+      top: 50%;
+      left: 40px;
+      transform: translateY(-50%);
+      width: 320px;
+      background: rgba(20, 20, 25, 0.6);
+      backdrop-filter: blur(15px);
+      -webkit-backdrop-filter: blur(15px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 20px;
+      padding: 30px;
+      color: white;
+      pointer-events: none; /* Let drag events pass through to the 3D canvas */
+      opacity: 0;           /* Hidden initially until model loads */
+    }
+
+    .info-panel h1 {
+      margin: 0 0 10px 0;
+      font-size: 28px;
+      font-weight: 600;
+      letter-spacing: 1px;
+    }
+
+    .info-panel p {
+      font-size: 14px;
+      color: rgba(255, 255, 255, 0.7);
+      line-height: 1.5;
+      margin-bottom: 25px;
+    }
+
+    .stats-grid {
+      display: flex;
+      flex-direction: column;
+      gap: 15px;
+    }
+
+    .stat-item {
+      display: flex;
+      justify-content: space-between;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      padding-bottom: 8px;
+    }
+
+    .stat-label {
+      color: rgba(255, 255, 255, 0.5);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    .stat-value {
+      font-size: 14px;
+      font-weight: 600;
+      color: #79a5ff;      /* A subtle blue tint for data points */
+    }
+
+    /* ── Mobile Responsiveness ────────────────────────────────── */
+    @media (max-width: 768px) {
+      /* Move info panel to bottom-left on mobile instead of left-center */
+      .info-panel {
+        top: auto;
+        bottom: 100px;          /* Above the controls row */
+        left: 16px;
+        right: 16px;            /* Stretch to fill narrow screen */
+        width: auto;
+        transform: none;
+        padding: 20px;
+        font-size: 13px;
+      }
+
+      .info-panel h1 {
+        font-size: 20px;
+      }
+
+      .info-panel p {
+        display: none;          /* Hide description paragraph on tiny screens to save space */
+      }
+
+      /* Make buttons larger for thumb tapping */
+      .controls-container {
+        bottom: 20px;
+        gap: 8px;
+      }
+
+      .glass-btn {
+        padding: 14px 18px;
+        font-size: 12px;
+      }
+
+      /* Thinner loading bar for narrow screens */
+      .loading-bar-track {
+        width: 200px;
+      }
+    }
   </style>
 </head>
 <body>
+
+  <!-- Loading Overlay (shown on top while model downloads) -->
+  <div id="loading-overlay">
+    <div class="loading-title">Loading Vehicle</div>
+    <div class="loading-bar-track">
+      <div class="loading-bar-fill" id="loading-bar"></div>
+    </div>
+    <div class="loading-percent" id="loading-percent">0%</div>
+  </div>
+
   <div id="canvas-container"></div>
   <div id="ui-overlay">
-    <!-- UI panels will go here in later phases -->
+
+    <!-- Vehicle Details Panel -->
+    <div class="info-panel" id="vehicle-info-panel">
+      <h1 id="vehicle-name">Model Name</h1>
+      <p id="vehicle-desc">Loading description...</p>
+      <div class="stats-grid">
+        <div class="stat-item">
+          <span class="stat-label">Top Speed</span>
+          <span class="stat-value" id="stat-speed">-- km/h</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-label">0-100 km/h</span>
+          <span class="stat-value" id="stat-accel">-- s</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-label">Weight</span>
+          <span class="stat-value" id="stat-weight">-- kg</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="controls-container">
+      <button class="glass-btn" id="btn-front">Front</button>
+      <button class="glass-btn" id="btn-side">Side</button>
+      <button class="glass-btn" id="btn-top">Top</button>
+    </div>
   </div>
   <script type="module" src="/src/main.js"></script>
 </body>

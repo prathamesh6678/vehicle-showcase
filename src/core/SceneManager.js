@@ -1,5 +1,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { CameraController } from './CameraController.js';
+import { InteractionManager } from './InteractionManager.js';
 import Stats from 'stats.js';
 
 const stats = new Stats();
@@ -11,6 +13,9 @@ export class SceneManager {
         this.container = container;
         this.width = window.innerWidth;
         this.height = window.innerHeight;
+
+        // Detect mobile once — used to conditionally disable expensive features
+        this.isMobile = window.innerWidth <= 768;
 
         this._initRenderer();
         this._initScene();
@@ -32,39 +37,35 @@ export class SceneManager {
         // Pixel ratio: never go above 2 — retina is fine, 3x kills mobile GPUs
         this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
         this.renderer.setSize(this.width, this.height);
-
-        // Physically correct lighting — makes materials look realistic
         this.renderer.useLegacyLights = false;
-
-        // Tone mapping makes HDR colors look natural on screen
         this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
         this.renderer.toneMappingExposure = 1.2;
-
-        // Enables correct gamma for textures
         this.renderer.outputColorSpace = THREE.SRGBColorSpace;
 
-        // Allows shadows (we'll use these for ground shadow)
-        this.renderer.shadowMap.enabled = true;
-        this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        // On mobile, disable shadows entirely — a single shadow map uses ~16MB of GPU memory!
+        this.renderer.shadowMap.enabled = !this.isMobile;
+        this.renderer.shadowMap.type = THREE.VSMShadowMap;
 
         this.container.appendChild(this.renderer.domElement);
     }
 
-    // ─── Scene ───────────────────────────────────────────────────
+    // ─── Scene & Environment ─────────────────────────────────────
     _initScene() {
         this.scene = new THREE.Scene();
-
-        // Fog adds depth — far objects fade into the background color
-        // Params: color, near distance, far distance
+        this.scene.background = new THREE.Color(0x0a0a0f);
         this.scene.fog = new THREE.Fog(0x0a0a0f, 20, 80);
 
-        // A subtle background gradient effect using a large sphere (skybox trick)
-        const bgGeo = new THREE.SphereGeometry(50, 32, 32);
-        const bgMat = new THREE.MeshBasicMaterial({
-            color: 0x0a0a0f,
-            side: THREE.BackSide   // Render inside of sphere
+        // Generate a professional studio HDRI dynamically
+        // This is CRITICAL for realistic vehicle paint and metal reflections
+        import('three/addons/environments/RoomEnvironment.js').then(({ RoomEnvironment }) => {
+            const pmremGenerator = new THREE.PMREMGenerator(this.renderer);
+            pmremGenerator.compileEquirectangularShader();
+            
+            this.scene.environment = pmremGenerator.fromScene(new RoomEnvironment()).texture;
+            
+            // We can optionally set the background to the environment, 
+            // but for a showcase, keeping the background dark and only using the environment for reflections usually looks better.
         });
-        this.scene.add(new THREE.Mesh(bgGeo, bgMat));
     }
 
     // ─── Camera ──────────────────────────────────────────────────
@@ -89,25 +90,25 @@ export class SceneManager {
         // Smooth damping — the camera "glides" to a stop, very satisfying UX
         this.controls.enableDamping = true;
         this.controls.dampingFactor = 0.05;
+        this.controls.minPolarAngle = Math.PI * 0.1;
+        this.controls.maxPolarAngle = Math.PI * 0.85;
 
-        // Limit vertical rotation — users shouldn't flip the model upside down
-        this.controls.minPolarAngle = Math.PI * 0.1;  // 18° from top
-        this.controls.maxPolarAngle = Math.PI * 0.85; // 153° — prevents going underground
-
-        // Zoom limits
-        this.controls.minDistance = 2;
-        this.controls.maxDistance = 15;
+        // On mobile, pull the camera back slightly more so the model fits the narrower screen
+        this.controls.minDistance = this.isMobile ? 3 : 2;
+        this.controls.maxDistance = this.isMobile ? 20 : 15;
 
         // Target — the point the camera orbits around
-        this.controls.target.set(0, 1, 0); // Slightly above ground (vehicle center)
+        this.controls.target.set(0, this.isMobile ? 1.5 : 1, 0);
         this.controls.update();
+
+        // Initialize our cinematic camera controller
+        this.cameraController = new CameraController(this.camera, this.controls);
+
+        // Initialize our Raycaster for mesh interaction
+        this.interactionManager = new InteractionManager(this.camera, this.renderer.domElement);
     }
 
-    // Inside _onFrame():
-    _onFrame() {
-        // Controls MUST be updated every frame when damping is enabled
-        this.controls.update();
-    }
+
 
     // ─── Lights ──────────────────────────────────────────────────
     _initLights() {
@@ -191,9 +192,15 @@ export class SceneManager {
         stats.end();
     }
 
-    // Override this in subclasses or attach callbacks for per-frame logic
+    // Called every frame — controls + interaction
     _onFrame() {
-        // Will be used for: controls.update(), GSAP tickers, object rotations
+        // Controls MUST be updated every frame when damping is enabled
+        this.controls.update();
+
+        // Check for mouse intersections every frame
+        if (this.interactionManager) {
+            this.interactionManager.update();
+        }
     }
 
     // Clean up everything — important for preventing memory leaks
